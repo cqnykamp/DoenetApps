@@ -1,6 +1,7 @@
-import express, { Express, Request, Response } from "express";
+import express, { Request, Response } from "express";
 import * as path from "path";
 import bodyParser from "body-parser";
+import expressWebsockets from "express-ws";
 
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
@@ -47,6 +48,7 @@ import passportLib from "passport";
 import bcrypt from "bcryptjs";
 import { generateHandle } from "./utils/names";
 import { codeRouter } from "./routes/code";
+import { setupHocuspocusServer } from "./utils/collaboration";
 
 // Type assertion to work around passport type declaration issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,7 +64,8 @@ declare module "express-serve-static-core" {
   }
 }
 
-const app: Express = express();
+const { app } = expressWebsockets(express());
+
 app.use(cookieParser());
 
 // make sure that when log out, it doesn't use old cached pages
@@ -395,14 +398,10 @@ if (
 ) {
   app.use("/api/test", testRouter);
 }
+
 app.get("/", (req: Request, res: Response) => {
   res.send("Express + TypeScript Server" + JSON.stringify(req?.user));
 });
-
-// app.get(
-//   "/api/auth/google",
-//   passport.authenticate("google", { scope: ["profile", "email"] }),
-// );
 
 app.post(
   "/api/auth/magiclink",
@@ -434,6 +433,28 @@ app.post(
 //     });
 //   },
 // );
+
+// Set up HocusPocus collaboration (if enabled)
+if ((process.env.ENABLE_HOCUSPOCUS ?? "false").toLowerCase() === "true") {
+  const hocuspocusServer = setupHocuspocusServer();
+
+  // Set up WebSocket route using express-ws
+  app.ws("/api/collaboration", (websocket, request) => {
+    const user = request.user as UserInfoWithEmail | undefined;
+    if (!user) {
+      websocket.close(1008, "unauthorized");
+      return;
+    }
+
+    const context = {
+      userId: user.userId,
+    };
+
+    hocuspocusServer!.handleConnection(websocket, request, context);
+  });
+
+  console.log("HocusPocus collaboration enabled");
+}
 
 app.listen(port, () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);

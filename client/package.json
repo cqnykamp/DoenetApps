@@ -34,11 +34,14 @@
   "dependencies": {
     "@chakra-ui/icons": "^2.2.4",
     "@chakra-ui/react": "^2.10.9",
+    "@codemirror/state": "^6.5.4",
+    "@doenet-tools/shared": "*",
     "@doenet/assignment-viewer": "^0.1.0-alpha-12",
     "@doenet/doenetml-iframe": "^0.7.3",
     "@doenet/v06-to-v07": "^0.7.3",
-    "@doenet-tools/shared": "*",
     "@fontsource/jost": "^5.2.6",
+    "@hocuspocus/provider": "^2.9.0",
+    "@uiw/react-codemirror": "^4.25.4",
     "axios": "^1.11.0",
     "better-react-mathjax": "^2.4.0-beta-1",
     "browser-image-resizer": "^2.4.1",
@@ -58,7 +61,9 @@
     "react-select": "^5.10.2",
     "recharts": "^2.15.4",
     "styled-components": "6.1.19",
-    "swiper": "^9.4.1"
+    "swiper": "^9.4.1",
+    "y-codemirror.next": "^0.3.5",
+    "yjs": "^13.6.20"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.28.0",
