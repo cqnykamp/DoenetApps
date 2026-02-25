@@ -1,0 +1,40 @@
+backend:
+  name: github
+  repo: Doenet/DoenetTools
+  branch: main
+
+publish_mode: editorial_workflow
+
+media_folder: "blog/public/images" # Media files will be stored in the repo under public/images
+public_folder: "blog/public" # The src attribute for uploaded media will begin with /blog/images
+
+collections:
+  - name: "blog" # Used in routes, e.g., /admin/collections/blog
+    label: "Blog" # Used in the UI
+    folder: "blog/src/content" # The path to the folder where the documents are stored
+    create: true # Allow users to create new documents in this collection
+    extension: "mdx" # The file extension for documents in this collection
+    format: "frontmatter"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+
+    fields: # The fields for each document, usually in frontmatter
+      # title: z.string(),
+      # description: z.string(),
+      # author: z.string(),
+      # organization: z.string().optional(),
+      # // Transform string to Date object
+      # pubDate: z.coerce.date(),
+      # updatedDate: z.coerce.date().optional(),
+      # heroImage: z.string(),
+      - { label: "Title", name: "title", widget: "string" }
+      - { label: "Description", name: "description", widget: "string" }
+      - { label: "Author", name: "author", widget: "string" }
+      - {
+          label: "Organization",
+          name: "organization",
+          widget: "string",
+          required: false,
+        }
+      - { label: "Publish Date", name: "pubDate", widget: "datetime" }
+      - { label: "Hero Image", name: "heroImage", widget: "image" }
+      - { label: "Body", name: "body", widget: "markdown" }
