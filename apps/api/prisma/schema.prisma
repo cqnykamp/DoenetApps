@@ -46,6 +46,8 @@ model content {
   doenetmlVersionId      Int?
   doenetmlVersion        doenetmlVersions?        @relation(fields: [doenetmlVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   numVariants            Int                      @default(1)
+  noErrorsConfirmed      Boolean                  @default(false)
+  accessibilityConfirmed Boolean                  @default(false)
   // Specific to documents inside problem sets
   repeatInProblemSet     Int                      @default(1)
   // 
