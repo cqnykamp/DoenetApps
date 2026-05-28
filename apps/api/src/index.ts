@@ -49,8 +49,7 @@ import { generateHandle } from "./utils/names";
 import { codeRouter } from "./routes/code";
 import { metricsRouter } from "./routes/metricsRoutes";
 import { contentRouter } from "./routes/content.route";
-import { mediaRouter } from "./routes/media.route";
-import { loadMediaConfig } from "./media/config";
+import { loadMediaConfig, mediaRouter } from "./media";
 import { getEnvVar } from "./utils/env";
 
 // Type assertion to work around passport type declaration issues
