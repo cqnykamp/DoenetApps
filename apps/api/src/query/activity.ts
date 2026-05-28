@@ -14,7 +14,7 @@ import { getNextSortIndexForParent } from "../utils/sort";
 import { DateTime } from "luxon";
 import { getCidV1FromString } from "@doenet-tools/shared";
 import { getContent } from "./activity_edit_view";
-import { resolveParentContext } from "./parentContext";
+import { prepareNewChild } from "../content-tree";
 import { compileActivityFromContent } from "../utils/contentStructure";
 import { InvalidRequestError } from "../utils/error";
 import { ContentDescription } from "../types";
@@ -61,7 +61,7 @@ export async function createContent({
   }
 
   const { sortIndex, isPublic, licenseCode, sharedWith, courseRootId } =
-    await resolveParentContext({ ownerId, parentId });
+    await prepareNewChild({ ownerId, parentId });
 
   const { defaultDoenetmlVersion } = await getDefaultDoenetmlVersion();
 
