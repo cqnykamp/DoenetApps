@@ -64,7 +64,7 @@ model content {
   sizeBytes              BigInt?
   imageWidth             Int?
   imageHeight            Int?
-  s3Key                  String?                  @db.VarChar(255)
+  storageKey             String?                  @db.VarChar(255)
   //
   // ===== Code ==========
   // Course or assignment code
