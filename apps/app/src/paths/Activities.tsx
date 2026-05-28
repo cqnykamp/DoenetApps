@@ -4,6 +4,7 @@ import {
   Text,
   Flex,
   useDisclosure,
+  useToast,
   MenuItem,
   Tooltip,
   Menu,
@@ -25,6 +26,7 @@ import {
   useFetcher,
   useOutletContext,
   useNavigate,
+  useRevalidator,
 } from "react-router";
 import axios from "axios";
 import { MdClose, MdOutlineSearch } from "react-icons/md";
@@ -261,6 +263,47 @@ export function Activities() {
     );
   }
 
+  const toast = useToast();
+  const revalidator = useRevalidator();
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleImageFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setHaveContentSpinner(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      if (parentId) form.append("parentId", parentId);
+      await axios.post("/api/media/image", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      revalidator.revalidate();
+      toast({
+        title: "Image uploaded",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.details ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Upload failed";
+      toast({
+        title: "Upload failed",
+        description: message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setHaveContentSpinner(false);
+    }
+  }
+
   const moveCopyContentModal = (
     <MoveCopyContent
       isOpen={moveCopyContentIsOpen}
@@ -400,8 +443,27 @@ export function Activities() {
         >
           Folder
         </MenuItem>
+        <MenuItem
+          data-test="Add Image Button"
+          onClick={() => {
+            imageInputRef.current?.click();
+          }}
+        >
+          Image
+        </MenuItem>
       </MenuList>
     </Menu>
+  );
+
+  const hiddenImageInput = (
+    <input
+      ref={imageInputRef}
+      type="file"
+      accept="image/jpeg,image/png,image/webp,image/gif"
+      style={{ display: "none" }}
+      onChange={handleImageFile}
+      data-test="Hidden Image Upload Input"
+    />
   );
 
   /**
@@ -561,6 +623,7 @@ export function Activities() {
 
         <HStack gap="7px">
           {createNewButton}
+          {hiddenImageInput}
           {parent && (
             <>
               <Button
@@ -627,8 +690,10 @@ export function Activities() {
       cardMenuRefs.current[position] = element;
     };
 
-    let cardLink: string;
-    if (activity.type === "folder") {
+    let cardLink: string | undefined;
+    if (activity.type === "image") {
+      cardLink = undefined;
+    } else if (activity.type === "folder") {
       cardLink = `/activities/${activity.ownerId}/${activity.contentId}`;
     } else if (activity.assignmentInfo) {
       cardLink = `/assignmentData/${activity.contentId}`;
@@ -636,11 +701,41 @@ export function Activities() {
       cardLink = editorUrl(activity.contentId, activity.type);
     }
 
+    const menuItems =
+      activity.type === "image" ? (
+        <MenuItem
+          data-test="Copy Image Tag"
+          onClick={async () => {
+            const tag = `<image source="${window.location.origin}/api/media/${activity.contentId}" />`;
+            try {
+              await navigator.clipboard.writeText(tag);
+              toast({
+                title: "Image tag copied",
+                status: "success",
+                duration: 3000,
+                isClosable: true,
+              });
+            } catch {
+              toast({
+                title: "Could not copy to clipboard",
+                description: tag,
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+              });
+            }
+          }}
+        >
+          Copy image tag
+        </MenuItem>
+      ) : undefined;
+
     return {
       menuRef: getCardMenuRef,
       content: activity,
       blurb: formatAssignmentBlurb(activity),
       cardLink,
+      menuItems,
     };
   });
 
