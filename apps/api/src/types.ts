@@ -160,11 +160,16 @@ export type PartialContentClassification = {
   numCommunity?: number;
 };
 
-export type ContentType = "singleDoc" | "select" | "sequence" | "folder";
+export type ContentType =
+  | "singleDoc"
+  | "select"
+  | "sequence"
+  | "folder"
+  | "image";
 export function isContentType(type: unknown): type is ContentType {
   return (
     typeof type === "string" &&
-    ["singleDoc", "select", "sequence", "folder"].includes(type)
+    ["singleDoc", "select", "sequence", "folder", "image"].includes(type)
   );
 }
 
@@ -237,9 +242,17 @@ export type Folder = ContentBase & {
   children: Content[];
 };
 
+export type ImageItem = ContentBase & {
+  type: "image";
+  mimeType?: string;
+  sizeBytes?: number;
+  imageWidth?: number;
+  imageHeight?: number;
+};
+
 export type Activity = Doc | QuestionBank | ProblemSet;
 
-export type Content = Doc | QuestionBank | ProblemSet | Folder;
+export type Content = Doc | QuestionBank | ProblemSet | Folder | ImageItem;
 
 export type AssignmentInfo = {
   assignmentStatus: AssignmentStatus;
