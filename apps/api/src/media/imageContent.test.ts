@@ -181,6 +181,31 @@ describe("createImageContent", () => {
     ).rejects.toBeInstanceOf(InvalidRequestError);
   });
 
+  test("rejects when parent is an image (images are leaves, not containers)", async () => {
+    const owner = await createTestUser();
+    const { contentId: parentImageId } = await createImageContent({
+      loggedInUserId: owner.userId,
+      parentId: null,
+      name: "parent.png",
+      mimeType: "image/png",
+      sizeBytes: 1,
+      imageWidth: 1,
+      imageHeight: 1,
+    });
+
+    await expect(
+      createImageContent({
+        loggedInUserId: owner.userId,
+        parentId: parentImageId,
+        name: "child.png",
+        mimeType: "image/png",
+        sizeBytes: 1,
+        imageWidth: 1,
+        imageHeight: 1,
+      }),
+    ).rejects.toThrow();
+  });
+
   test("rejects when parent belongs to a different owner", async () => {
     const owner = await createTestUser();
     const stranger = await createTestUser();

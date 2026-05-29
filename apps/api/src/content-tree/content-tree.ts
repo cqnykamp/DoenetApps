@@ -8,7 +8,8 @@ import { getNextSortIndexForParent } from "../utils/sort";
  *
  * Validates:
  *   - parent exists, is owned by `ownerId`, and isn't soft-deleted
- *   - parent isn't a leaf doc (`type !== "singleDoc"`)
+ *   - parent is a container type (folder, sequence, or select) — never a leaf
+ *     (`singleDoc`, `image`)
  *   - parent isn't an assignment root, and isn't directly under one
  *
  * Returns:
@@ -45,7 +46,7 @@ export async function prepareNewChild({
     const parent = await prisma.content.findUniqueOrThrow({
       where: {
         id: parentId,
-        type: { not: "singleDoc" },
+        type: { in: ["folder", "sequence", "select"] },
         isDeletedOn: null,
         ownerId,
       },

@@ -176,6 +176,53 @@ describe("handleUploadImage", () => {
     expect(orphans).toBe(0);
   });
 
+  test("415 when client-claimed MIME does not match detected format", async () => {
+    const user = await createTestUser();
+    // Client says PNG, but the bytes (per image-size) are actually JPEG.
+    vi.mocked(mockedImageSize).mockReturnValue({
+      width: 100,
+      height: 80,
+      type: "jpg",
+    });
+
+    const res = mockRes();
+    await handleUploadImage(
+      mockReq({
+        user: { userId: user.userId },
+        file: fileFor(FAKE_PNG),
+      }),
+      res as unknown as Response,
+    );
+
+    expect(res.statusCode).toBe(StatusCodes.UNSUPPORTED_MEDIA_TYPE);
+    expect(vi.mocked(s3.putImage)).not.toHaveBeenCalled();
+    const orphans = await prisma.content.count({
+      where: { ownerId: user.userId, type: "image" },
+    });
+    expect(orphans).toBe(0);
+  });
+
+  test("415 when detected format is not in the allowlist", async () => {
+    const user = await createTestUser();
+    vi.mocked(mockedImageSize).mockReturnValue({
+      width: 100,
+      height: 80,
+      type: "bmp",
+    });
+
+    const res = mockRes();
+    await handleUploadImage(
+      mockReq({
+        user: { userId: user.userId },
+        file: fileFor(FAKE_PNG),
+      }),
+      res as unknown as Response,
+    );
+
+    expect(res.statusCode).toBe(StatusCodes.UNSUPPORTED_MEDIA_TYPE);
+    expect(vi.mocked(s3.putImage)).not.toHaveBeenCalled();
+  });
+
   test("422 when image dimensions exceed the cap", async () => {
     const user = await createTestUser();
     vi.mocked(mockedImageSize).mockReturnValue({

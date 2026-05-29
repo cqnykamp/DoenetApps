@@ -18,11 +18,14 @@ import {
   uploadImageBodySchema,
 } from "./upload.schema";
 
-const MIME_TO_EXT: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
+// Canonical descriptors keyed by `image-size`'s detected format identifier.
+// This is the source of truth — never trust `file.mimetype` (client-supplied)
+// for what the bytes actually are.
+const FORMAT_INFO: Record<string, { mime: string; ext: string }> = {
+  jpg: { mime: "image/jpeg", ext: "jpg" },
+  png: { mime: "image/png", ext: "png" },
+  webp: { mime: "image/webp", ext: "webp" },
+  gif: { mime: "image/gif", ext: "gif" },
 };
 
 export const uploadImageMulter = multer({
@@ -68,13 +71,26 @@ export async function handleUploadImage(req: Request, res: Response) {
       );
     }
 
+    const format = dims.type && FORMAT_INFO[dims.type];
+    if (!format) {
+      throw new InvalidRequestError(
+        "Unsupported image format",
+        StatusCodes.UNSUPPORTED_MEDIA_TYPE,
+      );
+    }
+    if (file.mimetype !== format.mime) {
+      // Client-claimed MIME disagrees with what the bytes actually are.
+      throw new InvalidRequestError(
+        "Image MIME type does not match the file contents",
+        StatusCodes.UNSUPPORTED_MEDIA_TYPE,
+      );
+    }
+
     const fallbackName =
       file.originalname && file.originalname.trim()
         ? file.originalname.trim()
         : "Untitled Image";
     const name = body.name?.trim() || fallbackName;
-
-    const ext = MIME_TO_EXT[file.mimetype] ?? "bin";
 
     // DB row first (id auto-generated). On Prisma 6 + MySQL binary PKs the
     // post-INSERT read fails when we pass an explicit id, so we let the DB
@@ -83,19 +99,19 @@ export async function handleUploadImage(req: Request, res: Response) {
       loggedInUserId: req.user.userId,
       parentId: body.parentId,
       name,
-      mimeType: file.mimetype,
+      mimeType: format.mime,
       sizeBytes: file.size,
       imageWidth: dims.width,
       imageHeight: dims.height,
     });
 
-    const storageKey = `images/${fromUUID(contentId)}.${ext}`;
+    const storageKey = `images/${fromUUID(contentId)}.${format.ext}`;
 
     try {
       await putImage({
         key: storageKey,
         body: file.buffer,
-        contentType: file.mimetype,
+        contentType: format.mime,
       });
       await setImageStorageKey({
         contentId,
