@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { NoSuchKey } from "@aws-sdk/client-s3";
 import { StatusCodes } from "http-status-codes";
 import { handleErrors } from "../errors/routeErrorHandler";
 import { findViewableImage } from "./imageContent";
@@ -18,9 +19,21 @@ export async function handleServeImage(req: Request, res: Response) {
       return;
     }
 
-    const { body, contentType, contentLength } = await getImageStream(
-      image.storageKey,
-    );
+    let body, contentType, contentLength;
+    try {
+      ({ body, contentType, contentLength } = await getImageStream(
+        image.storageKey,
+      ));
+    } catch (err) {
+      // The row claims the object is ready, but storage disagrees. Surface
+      // this as 404 (matches what the client sees for a missing image) rather
+      // than 500.
+      if (err instanceof NoSuchKey) {
+        res.status(StatusCodes.NOT_FOUND).json({ error: "Not found" });
+        return;
+      }
+      throw err;
+    }
 
     res.setHeader("Content-Type", contentType ?? image.mimeType);
     if (contentLength) {

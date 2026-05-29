@@ -181,6 +181,27 @@ describe("createImageContent", () => {
     ).rejects.toBeInstanceOf(InvalidRequestError);
   });
 
+  test("rejects when parent is a singleDoc (docs are leaves, not containers)", async () => {
+    const owner = await createTestUser();
+    const { contentId: docId } = await createContent({
+      loggedInUserId: owner.userId,
+      contentType: "singleDoc",
+      parentId: null,
+    });
+
+    await expect(
+      createImageContent({
+        loggedInUserId: owner.userId,
+        parentId: docId,
+        name: "child.png",
+        mimeType: "image/png",
+        sizeBytes: 1,
+        imageWidth: 1,
+        imageHeight: 1,
+      }),
+    ).rejects.toThrow();
+  });
+
   test("rejects when parent is an image (images are leaves, not containers)", async () => {
     const owner = await createTestUser();
     const { contentId: parentImageId } = await createImageContent({

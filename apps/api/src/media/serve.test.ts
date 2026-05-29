@@ -266,4 +266,22 @@ describe("handleServeImage", () => {
 
     expect(res.statusCode).toBe(StatusCodes.NOT_FOUND);
   });
+
+  test("404 when the storage object is missing (NoSuchKey)", async () => {
+    const owner = await createTestUser();
+    const contentId = await makeImage(owner.userId);
+    // Construct a NoSuchKey error the way @aws-sdk/client-s3 raises it.
+    const { NoSuchKey } = await import("@aws-sdk/client-s3");
+    const noSuchKey = new NoSuchKey({
+      $metadata: {},
+      message: "The specified key does not exist.",
+    });
+    vi.mocked(s3.getImageStream).mockRejectedValue(noSuchKey);
+
+    const res = mockRes();
+    await call(mockReq({ contentId, userId: owner.userId }), res);
+
+    expect(res.statusCode).toBe(StatusCodes.NOT_FOUND);
+    expect(res.jsonBody).toEqual({ error: "Not found" });
+  });
 });
