@@ -1,3 +1,8 @@
+# TODO: this include is shared by the doenet app task role and the mysql task
+# role, so mysql ends up with S3 access to both ${S3AppBucket} (via S3Policy)
+# and ${S3MediaBucket} (via MediaS3Policy) that it does not need.
+#
+# There is probably a better way to do this!!
 Policies:
   - PolicyName: SecretsPolicy
     PolicyDocument:
@@ -38,6 +43,16 @@ Policies:
           Resource:
             - Fn::Sub: "arn:aws:s3:::${S3AppBucket}"
             - Fn::Sub: "arn:aws:s3:::${S3AppBucket}/*"
+  - PolicyName: MediaS3Policy
+    PolicyDocument:
+      Statement:
+        - Effect: Allow
+          Action:
+            - "s3:PutObject"
+            - "s3:GetObject"
+            - "s3:DeleteObject"
+          Resource:
+            - Fn::Sub: "arn:aws:s3:::${S3MediaBucket}/*"
   - PolicyName: SESPolicy
     PolicyDocument:
       Statement:
