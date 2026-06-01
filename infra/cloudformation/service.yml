@@ -163,8 +163,8 @@ Parameters:
     Description: The of the application bucket
 
   S3MediaBucket:
-    Type: "AWS::SSM::Parameter::Value<String>"
-    Description: The name of the user-uploaded media bucket (created by the s3-hosted stack)
+    Type: String
+    Description: The name of the user-uploaded media bucket (created by the s3-hosted stack in us-east-1). Passed as a literal because the SSM parameter that holds it lives in us-east-1 while this stack runs in another region.
 
   RedshiftSecretArn:
     Type: String
