@@ -625,12 +625,13 @@ test("cannot assign sub-part of problem set", async () => {
   ).rejects.toThrow();
 });
 
-test("item names expand question banks and repeats", async () => {
+test("item names skip descriptions and expand question banks and repeats", async () => {
   const owner = await createTestUser();
   const ownerId = owner.userId;
 
-  const [psId, problemId, _bankId] = await setupTestContent(ownerId, {
+  const [psId, introId, problemId, _bankId] = await setupTestContent(ownerId, {
     "A problem set": pset({
+      Intro: doc("read this first"),
       Problem: doc(`<selectFromSequence from="1" to="5"/>`),
       Bank: qbank({
         "Question A": doc("a"),
@@ -639,6 +640,11 @@ test("item names expand question banks and repeats", async () => {
     }),
   });
 
+  await updateContent({
+    contentId: introId,
+    loggedInUserId: ownerId,
+    isDescription: true,
+  });
   await updateContent({
     contentId: problemId,
     loggedInUserId: ownerId,
@@ -658,8 +664,8 @@ test("item names expand question banks and repeats", async () => {
   });
 
   // The item names label the gradebook columns, so they must line up one-to-one
-  // with the items of the compiled activity: the twice-repeated problem
-  // contributes two, and the question bank one per selection.
+  // with the items of the compiled activity: the description contributes none,
+  // the twice-repeated problem two, and the question bank one per selection.
   const { itemNames } = await getAssignmentResponseOverview({
     contentId: assignmentId,
     loggedInUserId: ownerId,

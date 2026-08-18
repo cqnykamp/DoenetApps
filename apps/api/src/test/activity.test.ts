@@ -316,6 +316,51 @@ test("Test updating repeatInProblemSet", async () => {
   expect(await repeatVal()).eqls(23);
 });
 
+test("Test updating isDescription", async () => {
+  const { userId } = await createTestUser();
+  const [_ps, psDoc, nonPsDoc] = await setupTestContent(userId, {
+    ps: pset({
+      psDoc: doc("a description"),
+    }),
+    nonPsDoc: doc("not inside problem set"),
+  });
+
+  // Cannot update outside of problem set
+  await expect(
+    updateContent({
+      contentId: nonPsDoc,
+      loggedInUserId: userId,
+      isDescription: true,
+    }),
+  ).rejects.toThrowError();
+
+  async function descriptionVal() {
+    const result = (await getContent({
+      contentId: psDoc,
+      loggedInUserId: userId,
+    })) as Doc;
+    return result.isDescription;
+  }
+
+  // Defaults to false
+  expect(await descriptionVal()).eqls(false);
+
+  await updateContent({
+    contentId: psDoc,
+    loggedInUserId: userId,
+    isDescription: true,
+  });
+  expect(await descriptionVal()).eqls(true);
+
+  // `false` is a meaningful value, not a no-op
+  await updateContent({
+    contentId: psDoc,
+    loggedInUserId: userId,
+    isDescription: false,
+  });
+  expect(await descriptionVal()).eqls(false);
+});
+
 test("repeatInProblemSet survives into the compiled activity", async () => {
   const { userId } = await createTestUser();
   const [ps, psDoc] = await setupTestContent(userId, {
@@ -365,6 +410,75 @@ test("repeatInProblemSet survives into the compiled activity", async () => {
   expect(inner.id).eqls(fromUUID(psDoc));
   // the document carries its title, as it does on the client
   expect(inner.title).eqls("psDoc");
+});
+
+test("A description is not one of the scored items", async () => {
+  const { userId } = await createTestUser();
+  const [ps, psDoc1, _psDoc2] = await setupTestContent(userId, {
+    ps: pset({
+      psDoc1: doc("intro text"),
+      psDoc2: doc("<problem><answer>1</answer></problem>"),
+    }),
+  });
+
+  await updateContent({
+    contentId: psDoc1,
+    loggedInUserId: userId,
+    isDescription: true,
+  });
+
+  const content = await getContent({ contentId: ps, loggedInUserId: userId });
+  const source = compileActivityFromContent(content);
+
+  if (source.type !== "sequence") {
+    throw Error("shouldn't happen");
+  }
+
+  // both documents are compiled into the activity, but only the second one
+  // counts as a scored item
+  expect(source.items.length).eqls(2);
+  expect(
+    source.items.map((item) =>
+      item.type === "singleDoc" ? item.isDescription : undefined,
+    ),
+  ).eqls([true, false]);
+});
+
+test("A description is not repeated", async () => {
+  const { userId } = await createTestUser();
+  const [ps, psDoc] = await setupTestContent(userId, {
+    ps: pset({
+      psDoc: doc(`<selectFromSequence from="1" to="5"/>`),
+    }),
+  });
+  await updateContent({
+    contentId: psDoc,
+    loggedInUserId: userId,
+    numVariants: 5,
+  });
+  await updateContent({
+    contentId: psDoc,
+    loggedInUserId: userId,
+    repeatInProblemSet: 3,
+  });
+  await updateContent({
+    contentId: psDoc,
+    loggedInUserId: userId,
+    isDescription: true,
+  });
+
+  const content = await getContent({ contentId: ps, loggedInUserId: userId });
+  const source = compileActivityFromContent(content);
+
+  if (source.type !== "sequence") {
+    throw Error("shouldn't happen");
+  }
+
+  // The viewer throws on a select whose items include a description, and a
+  // description is not a scored item, so the repeat is ignored.
+  // Mirrored by "does not repeat a description" in
+  // `apps/app/src/utils/activity.cy.tsx`.
+  expect(source.items[0].type).eqls("singleDoc");
 });
 
 test("A document is repeated no more times than it has variants", async () => {

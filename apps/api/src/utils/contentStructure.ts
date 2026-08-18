@@ -252,14 +252,15 @@ export function returnContentSelect({
     _count: { select: { contentStates: true } },
   };
 
-  // `repeatInProblemSet` is a setting for a document inside a problem set. It
-  // determines the item structure of the compiled activity, so it is always
-  // selected: every caller that compiles an activity — including for
-  // revisions, cids, and assigned content — needs it.
+  // `isDescription` and `repeatInProblemSet` are settings for a document inside
+  // a problem set. Both determine the item structure of the compiled activity,
+  // so they are always selected: every caller that compiles an activity —
+  // including for revisions, cids, and assigned content — needs them.
   const docSelect = {
     numVariants: true,
     source: true,
     doenetmlVersion: true,
+    isDescription: true,
     repeatInProblemSet: true,
   };
 
@@ -354,6 +355,7 @@ type PreliminaryContent = {
   activityLevelAttempts: boolean;
   itemLevelAttempts: boolean;
   repeatInProblemSet?: number;
+  isDescription?: boolean;
 
   // Assignment related fields
   classCode: number | null;
@@ -465,6 +467,7 @@ export function processContent(
 
     // document inside problem set
     repeatInProblemSet,
+    isDescription,
 
     // Image-only 1:1 data, re-exposed (as `imageSource` + attribution) on the
     // image case below and kept off every other content type.
@@ -522,6 +525,7 @@ export function processContent(
         doenetmlVersion: DoenetmlVersion;
         revisionNum?: number;
         repeatInProblemSet?: number;
+        isDescription: boolean;
       };
 
       if (
@@ -534,6 +538,7 @@ export function processContent(
           numVariants: numVariantsOrig,
           doenetmlVersion: doenetmlVersionOrig,
           repeatInProblemSet,
+          isDescription: isDescription ?? false,
         };
       } else {
         throw new InvalidRequestError("Invalid document");
@@ -646,7 +651,7 @@ export function returnClassificationListSelect() {
  * produce a valid source for viewing the activity).
  *
  * `inProblemSet` says whether `activity` is a child of a problem set, which is
- * where the document setting `repeatInProblemSet` applies.
+ * where the document settings `isDescription` and `repeatInProblemSet` apply.
  */
 export function compileActivityFromContent(
   activity: Content,
@@ -655,18 +660,21 @@ export function compileActivityFromContent(
 ): ActivitySource {
   switch (activity.type) {
     case "singleDoc": {
+      const isDescription = inProblemSet && (activity.isDescription ?? false);
       const documentJson = {
         id: fromUUID(activity.contentId),
         type: activity.type,
         title: activity.name,
-        isDescription: false,
+        isDescription,
         doenetML: activity.doenetML!,
         version: useVersionIds
           ? activity.doenetmlVersion.id.toString()
           : activity.doenetmlVersion.fullVersion,
         numVariants: activity.numVariants,
       };
-      const repeatCount = inProblemSet ? repeatCountInProblemSet(activity) : 1;
+      const repeatCount = inProblemSet
+        ? repeatCountInProblemSet({ ...activity, isDescription })
+        : 1;
       if (repeatCount > 1) {
         // If the document repeats, wrap this document in
         // a `select` which can select that many variants.

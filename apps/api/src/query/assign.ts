@@ -871,6 +871,7 @@ export async function getAssignmentResponseStudent({
           type: true,
           numToSelect: true,
           repeatInProblemSet: true,
+          isDescription: true,
           numVariants: true,
         },
       },
@@ -1435,7 +1436,8 @@ function repeatedItemNames(name: string, count: number) {
  * The result must line up one-to-one with the items of the compiled activity
  * (see `compileActivityFromContent`), since the item names label the columns of
  * the gradebook indexed by `itemNumber`. So a question bank contributes one name
- * per selected item and a repeated document one name per copy.
+ * per selected item, a repeated document one name per copy, and a description
+ * none at all — a description is not a scored item.
  */
 function getItemNames(
   content:
@@ -1449,6 +1451,7 @@ function getItemNames(
           type: ContentType;
           numToSelect: number;
           repeatInProblemSet?: number;
+          isDescription?: boolean;
           numVariants?: number;
         }[];
       },
@@ -1462,7 +1465,9 @@ function getItemNames(
 
   return content.children.flatMap((child) => {
     if (child.type === "singleDoc") {
-      return repeatedItemNames(child.name, repeatCountInProblemSet(child));
+      return child.isDescription
+        ? []
+        : repeatedItemNames(child.name, repeatCountInProblemSet(child));
     }
     if (child.type === "select") {
       return repeatedItemNames(child.name, child.numToSelect);

@@ -27,4 +27,14 @@ describe("repeatCountInProblemSet", () => {
       repeatCountInProblemSet({ repeatInProblemSet: 0, numVariants: 5 }),
     ).eqls(1);
   });
+
+  test("a description is never repeated", () => {
+    expect(
+      repeatCountInProblemSet({
+        isDescription: true,
+        repeatInProblemSet: 3,
+        numVariants: 5,
+      }),
+    ).eqls(1);
+  });
 });
