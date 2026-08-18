@@ -101,6 +101,11 @@ export type CardContent = {
   libraryEditorAvatarName?: string;
   repeatInProblemSet?: number;
   updateRepeatInProblemSet?: (copies: number) => void;
+  // Defined only for a document inside a problem set; the matching updater is
+  // omitted when the content cannot be changed (e.g. it is assigned), which
+  // renders the control as disabled.
+  isDescription?: boolean;
+  updateIsDescription?: (isDescription: boolean) => void;
 };
 
 export default function Card({
@@ -195,16 +200,31 @@ export default function Card({
     ></Checkbox>
   );
 
-  // Content type icon
+  const descriptionExplanation =
+    "Shown to students but not numbered or scored. Do not put anything a student answers in a description — their work there is not saved or graded.";
+
+  // Content type icon. A description gets its own icon and color so that it
+  // reads as structurally different from the scored problems around it.
   const { iconImage, iconColor } = getIconInfo(
     contentType,
     Boolean(cardContent.content.assignmentInfo),
+    cardContent.isDescription,
   );
   const contentTypeLabel = cardContent.content.assignmentInfo
     ? "Assignment"
-    : contentTypeName;
+    : cardContent.isDescription
+      ? "Description (not scored)"
+      : contentTypeName;
   const contentTypeIcon = (
-    <Tooltip openDelay={500} label={contentTypeLabel}>
+    <Tooltip
+      openDelay={500}
+      label={
+        cardContent.isDescription
+          ? `Description: ${descriptionExplanation}`
+          : contentTypeLabel
+      }
+      maxWidth="18rem"
+    >
       <Flex
         alignItems="center"
         marginLeft={["0.5rem", "0.5rem"]}
@@ -415,8 +435,10 @@ export default function Card({
   // The explanation also rides on `aria-label`, so it is not tooltip-only.
   const repeatExplanation =
     "Include this problem in the problem set more than once, each copy using a different variant of the document. Offered only for documents that have more than one variant.";
+  // A description is not a scored item, so it is never repeated.
   const repeatInProblemSet = cardContent.repeatInProblemSet &&
-    numVariants > 1 && (
+    numVariants > 1 &&
+    !cardContent.isDescription && (
       <HoverFocusTooltip label={repeatExplanation}>
         <HStack>
           <Text>Repeat:</Text>
@@ -457,6 +479,28 @@ export default function Card({
         </HStack>
       </HoverFocusTooltip>
     );
+
+  // A description is shown to students like any other document but is not one
+  // of the scored problems, so it gets no number and no credit. The warning
+  // also rides on `aria-label`, so a screen reader announces it when the
+  // checkbox takes focus.
+  const isDescriptionToggle = cardContent.isDescription !== undefined && (
+    <HoverFocusTooltip label={descriptionExplanation}>
+      <Checkbox
+        size="sm"
+        isChecked={cardContent.isDescription}
+        isDisabled={cardContent.updateIsDescription === undefined}
+        aria-label={`Description: ${descriptionExplanation}`}
+        onChange={(e) => {
+          cardContent.updateIsDescription?.(e.target.checked);
+        }}
+      >
+        <Text fontSize="sm" whiteSpace="nowrap">
+          Description
+        </Text>
+      </Checkbox>
+    </HoverFocusTooltip>
+  );
 
   const menuMarginLeft = ["0em", "3em"];
   const menuDisplay = cardContent.inlineActions ? (
@@ -544,8 +588,16 @@ export default function Card({
               {addMenu}
             </Flex>
           )}
-          {/* Right-aligned, not main link */}
-          {repeatInProblemSet}
+          {/* Right-aligned, not main link. Repeat comes first: the description
+              toggle is on every document, so keeping it last lines it up in a
+              single column whether or not the optional repeat control is
+              present. */}
+          {(isDescriptionToggle || repeatInProblemSet) && (
+            <HStack spacing="0.75rem" paddingLeft="0.75rem">
+              {repeatInProblemSet}
+              {isDescriptionToggle}
+            </HStack>
+          )}
           {menuDisplay}
         </Flex>
       </CardBody>
