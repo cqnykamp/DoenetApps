@@ -1,4 +1,4 @@
-import { ReactElement, useState } from "react";
+import { ReactElement, ReactNode, useState } from "react";
 import {
   Text,
   Card as ChakraCard,
@@ -36,6 +36,53 @@ import { SmallLicenseBadges } from "./Licenses";
 import { IoDiceOutline } from "react-icons/io5";
 import { SiteContext } from "../paths/SiteHeader";
 import { AccessibleAvatar } from "./AccessibleAvatar";
+
+/**
+ * A tooltip that opens on keyboard focus as well as on hover.
+ *
+ * Chakra binds its own handlers to the outermost element of the tooltip's child,
+ * which for a form control is a label wrapper that never takes focus itself, so
+ * an uncontrolled tooltip never opens for a keyboard user. React's synthetic
+ * focus events bubble, so driving a controlled tooltip from a wrapper covers
+ * both pointer and keyboard.
+ */
+function HoverFocusTooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Tooltip
+      isOpen={isOpen}
+      label={label}
+      maxWidth="18rem"
+      // These controls sit at the right edge of the card, so anchor the
+      // tooltip's right edge to them and keep it inside the viewport —
+      // otherwise it hangs off the page and adds scrollbars.
+      placement="bottom-end"
+      modifiers={[
+        {
+          name: "preventOverflow",
+          options: { boundary: "clippingParents", padding: 8 },
+        },
+      ]}
+    >
+      <Flex
+        alignItems="center"
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setIsOpen(false)}
+      >
+        {children}
+      </Flex>
+    </Tooltip>
+  );
+}
 
 export type CardContent = {
   menuRef?: (arg: HTMLButtonElement) => void;
@@ -153,13 +200,11 @@ export default function Card({
     contentType,
     Boolean(cardContent.content.assignmentInfo),
   );
+  const contentTypeLabel = cardContent.content.assignmentInfo
+    ? "Assignment"
+    : contentTypeName;
   const contentTypeIcon = (
-    <Tooltip
-      openDelay={500}
-      label={
-        cardContent.content.assignmentInfo ? "Assignment" : contentTypeName
-      }
-    >
+    <Tooltip openDelay={500} label={contentTypeLabel}>
       <Flex
         alignItems="center"
         marginLeft={["0.5rem", "0.5rem"]}
@@ -170,9 +215,7 @@ export default function Card({
           color={iconColor}
           width={contentTypeIconSize}
           height={contentTypeIconSize}
-          aria-label={
-            cardContent.content.assignmentInfo ? "Assignment" : contentTypeName
-          }
+          aria-label={contentTypeLabel}
         />
       </Flex>
     </Tooltip>
@@ -367,38 +410,52 @@ export default function Card({
 
   const [copyNum, setCopyNum] = useState(cardContent.repeatInProblemSet);
 
+  // Repeating compiles the document into a select that draws that many of its
+  // variants, so the student gets that many differing copies of the problem.
+  // The explanation also rides on `aria-label`, so it is not tooltip-only.
+  const repeatExplanation =
+    "Include this problem in the problem set more than once, each copy using a different variant of the document. Offered only for documents that have more than one variant.";
   const repeatInProblemSet = cardContent.repeatInProblemSet &&
     numVariants > 1 && (
-      <HStack>
-        <Text>Repeat:</Text>
-        <NumberInput
-          size="sm"
-          maxWidth="20"
-          min={1}
-          max={numVariants}
-          value={copyNum}
-          onChange={(valueString) => setCopyNum(parseInt(valueString))}
-          onKeyDown={(e) => {
-            if (e.key == "Enter") {
-              const target = e.target as HTMLInputElement;
-              if (parseInt(target.value) >= 1) {
-                cardContent.updateRepeatInProblemSet!(parseInt(target.value));
+      <HoverFocusTooltip label={repeatExplanation}>
+        <HStack>
+          <Text>Repeat:</Text>
+          <NumberInput
+            size="sm"
+            maxWidth="20"
+            min={1}
+            max={numVariants}
+            value={copyNum}
+            isDisabled={cardContent.updateRepeatInProblemSet === undefined}
+            onChange={(valueString) => setCopyNum(parseInt(valueString))}
+            onKeyDown={(e) => {
+              if (e.key == "Enter") {
+                const target = e.target as HTMLInputElement;
+                if (parseInt(target.value) >= 1) {
+                  cardContent.updateRepeatInProblemSet?.(
+                    parseInt(target.value),
+                  );
+                }
               }
-            }
-          }}
-          onBlur={(e) => {
-            if (parseInt(e.target.value) >= 1) {
-              cardContent.updateRepeatInProblemSet!(parseInt(e.target.value));
-            }
-          }}
-        >
-          <NumberInputField />
-          <NumberInputStepper>
-            <NumberIncrementStepper />
-            <NumberDecrementStepper />
-          </NumberInputStepper>
-        </NumberInput>
-      </HStack>
+            }}
+            onBlur={(e) => {
+              if (parseInt(e.target.value) >= 1) {
+                cardContent.updateRepeatInProblemSet?.(
+                  parseInt(e.target.value),
+                );
+              }
+            }}
+          >
+            <NumberInputField
+              aria-label={`Number of times to repeat this problem: ${repeatExplanation}`}
+            />
+            <NumberInputStepper>
+              <NumberIncrementStepper />
+              <NumberDecrementStepper />
+            </NumberInputStepper>
+          </NumberInput>
+        </HStack>
+      </HoverFocusTooltip>
     );
 
   const menuMarginLeft = ["0em", "3em"];

@@ -265,6 +265,9 @@ export function CompoundActivityEditor({
   ) {
     const cards: CardContent[] = [];
 
+    const inProblemSet =
+      content.type === "singleDoc" && content.parent?.type === "sequence";
+
     // skip the first activity, which doesn't have parent info
     if (parentInfo) {
       cards.push({
@@ -276,18 +279,25 @@ export function CompoundActivityEditor({
               : editorUrl(content.contentId, content.type)
             : undefined,
         indentLevel,
-        repeatInProblemSet:
-          content.type === "singleDoc" ? content.repeatInProblemSet : undefined,
-        updateRepeatInProblemSet: (copies) => {
-          settingsFetcher.submit(
-            {
-              path: "updateContent/updateContentSettings",
-              contentId: content.contentId,
-              repeatInProblemSet: copies,
+        // Repeating is a setting of a document directly inside a problem set;
+        // it does not apply within a question bank. It changes the number of
+        // items, so the server rejects it once the content is assigned;
+        // omitting the updater renders the control as disabled.
+        repeatInProblemSet: inProblemSet
+          ? content.repeatInProblemSet
+          : undefined,
+        updateRepeatInProblemSet: readOnly
+          ? undefined
+          : (copies) => {
+              settingsFetcher.submit(
+                {
+                  path: "updateContent/updateContentSettings",
+                  contentId: content.contentId,
+                  repeatInProblemSet: copies,
+                },
+                { method: "post", encType: "application/json" },
+              );
             },
-            { method: "post", encType: "application/json" },
-          );
-        },
       });
     }
 

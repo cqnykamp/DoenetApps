@@ -10,7 +10,7 @@ import {
   ContentType,
   DoenetmlVersion,
 } from "../types";
-import { ActivitySource } from "@doenet-tools/shared";
+import { ActivitySource, repeatCountInProblemSet } from "@doenet-tools/shared";
 import { IconType } from "react-icons/lib";
 import { FaFolder, FaImage } from "react-icons/fa";
 import { FaListOl } from "react-icons/fa6";
@@ -116,10 +116,23 @@ export function findClassificationDescriptionIndex({
   });
 }
 
-export function compileActivityFromContent(activity: Content): ActivitySource {
+/**
+ * Compile an `activity` into the activity json used for viewing composite activities.
+ *
+ * `inProblemSet` says whether `activity` is a child of a problem set, which is
+ * where the document setting `repeatInProblemSet` applies.
+ *
+ * Must stay in sync with the server compiler in
+ * `apps/api/src/utils/contentStructure.ts`, since the two produce the source
+ * for different views of the same problem set.
+ */
+export function compileActivityFromContent(
+  activity: Content,
+  inProblemSet = false,
+): ActivitySource {
   switch (activity.type) {
     case "singleDoc": {
-      return {
+      const documentJson = {
         id: activity.contentId,
         type: activity.type,
         title: activity.name,
@@ -128,6 +141,21 @@ export function compileActivityFromContent(activity: Content): ActivitySource {
         version: activity.doenetmlVersion.fullVersion,
         numVariants: activity.numVariants,
       };
+      const repeatCount = inProblemSet ? repeatCountInProblemSet(activity) : 1;
+      if (repeatCount > 1) {
+        // If the document repeats, wrap this document in
+        // a `select` which can select that many variants.
+        return {
+          id: `select_for_${activity.contentId}`,
+          type: "select",
+          title: `Repeat ${repeatCount} times`,
+          numToSelect: repeatCount,
+          selectByVariant: true,
+          items: [documentJson],
+        };
+      } else {
+        return documentJson;
+      }
     }
     case "select": {
       return {
@@ -136,7 +164,9 @@ export function compileActivityFromContent(activity: Content): ActivitySource {
         title: activity.name,
         numToSelect: activity.numToSelect,
         selectByVariant: activity.selectByVariant,
-        items: activity.children.map(compileActivityFromContent),
+        items: activity.children.map((child) =>
+          compileActivityFromContent(child, false),
+        ),
       };
     }
     case "sequence": {
@@ -145,7 +175,9 @@ export function compileActivityFromContent(activity: Content): ActivitySource {
         type: activity.type,
         title: activity.name,
         shuffle: activity.shuffle,
-        items: activity.children.map(compileActivityFromContent),
+        items: activity.children.map((child) =>
+          compileActivityFromContent(child, true),
+        ),
       };
     }
     case "folder": {
