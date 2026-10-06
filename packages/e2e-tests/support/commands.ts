@@ -29,6 +29,25 @@ import "cypress-file-upload";
 import "cypress-iframe";
 
 import type { ContentType } from "@doenet-tools/shared";
+import { buildOperationRequest } from "@doenet-tools/shared";
+
+Cypress.Commands.add(
+  "api",
+  // Typed by the declaration in index.d.ts.
+  (name: Parameters<typeof buildOperationRequest>[0], params?: object) => {
+    const request = buildOperationRequest(name, params as never);
+    // The one sanctioned raw request to /api.
+    // eslint-disable-next-line no-restricted-syntax
+    return cy
+      .request({
+        method: request.method.toUpperCase(),
+        url: request.url,
+        qs: request.query,
+        body: request.body,
+      })
+      .its("body");
+  },
+);
 
 Cypress.Commands.add(
   "loginAsTestUser",
@@ -208,25 +227,14 @@ Cypress.Commands.add(
     parentId?: string;
     maxAttempts?: number;
   }) => {
-    cy.request({
-      method: "POST",
-      url: "/api/assign/createAssignment",
-      body: {
-        contentId,
-        closedOn,
-        destinationParentId: parentId ?? null,
-      },
-    }).then((resp) => {
-      const assignmentId: string = resp.body.assignmentId;
-      const classCode: number | null = resp.body.classCode ?? null;
-
-      cy.request({
-        method: "POST",
-        url: "/api/assign/updateAssignmentMaxAttempts",
-        body: {
-          contentId: assignmentId,
-          maxAttempts,
-        },
+    cy.api("createAssignment", {
+      contentId,
+      closedOn,
+      destinationParentId: parentId ?? null,
+    }).then(({ assignmentId, classCode }) => {
+      cy.api("updateAssignmentMaxAttempts", {
+        contentId: assignmentId,
+        maxAttempts,
       }).then(() => {
         return { assignmentId, classCode };
       });
