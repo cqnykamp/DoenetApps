@@ -21,8 +21,16 @@ import { apiOperations } from "../apiOperations";
 
 const UNCOVERED_PATH = path.resolve(__dirname, "../../contract-uncovered.json");
 
-/** Infrastructure, not part of the contract. */
-const EXCLUDED = [/^\w+ \/api\/test\//, /^\w+ \/api\/(docs|openapi\.json)$/];
+/**
+ * Infrastructure, not part of the contract. Test-only routes are mounted
+ * depending on env vars, so excluding them also keeps this test independent
+ * of the local `.env`.
+ */
+const EXCLUDED = [
+  /^\w+ \/api\/test\//,
+  /^\w+ \/api\/(docs|openapi\.json)$/,
+  /^POST \/api\/login\/createOrLoginAsTest$/,
+];
 
 type RouteLayer = {
   route?: { path: string; methods: Record<string, boolean> };
