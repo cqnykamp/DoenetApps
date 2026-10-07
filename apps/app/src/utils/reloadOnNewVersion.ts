@@ -30,9 +30,25 @@ async function fetchDeployedCommit(): Promise<string | null> {
   }
 }
 
-export function reloadOnNewVersion(router: Router) {
+/**
+ * Starts watching for new deploys. The returned handle exists for tests: the
+ * app ignores it, since the watch lasts for the life of the tab.
+ */
+export function reloadOnNewVersion(
+  router: Router,
+  // Swappable so component tests can observe the reload without leaving the page.
+  reload: (path: string) => void = (path) => window.location.assign(path),
+): {
+  /** Resolves once the loaded commit is known (or found to be unavailable). */
+  ready: Promise<void>;
+  /** Re-checks the deployed commit now. */
+  check: () => Promise<void>;
+  stop: () => void;
+} {
   let loadedCommit: string | null = null;
   let newVersionDeployed = false;
+  let stopped = false;
+  let interval: ReturnType<typeof setInterval> | undefined;
 
   async function check() {
     if (!loadedCommit || newVersionDeployed || document.hidden) {
@@ -44,18 +60,29 @@ export function reloadOnNewVersion(router: Router) {
     }
   }
 
-  void fetchDeployedCommit().then((commit) => {
+  const ready = fetchDeployedCommit().then((commit) => {
     loadedCommit = commit;
-    if (commit) {
-      setInterval(check, CHECK_INTERVAL_MS);
+    if (commit && !stopped) {
+      interval = setInterval(check, CHECK_INTERVAL_MS);
       document.addEventListener("visibilitychange", check);
     }
   });
 
-  router.subscribe((state) => {
+  const unsubscribe = router.subscribe((state) => {
     const { location, state: navigationState } = state.navigation;
     if (newVersionDeployed && navigationState === "loading" && location) {
-      window.location.assign(createPath(location));
+      reload(createPath(location));
     }
   });
+
+  return {
+    ready,
+    check,
+    stop() {
+      stopped = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", check);
+      unsubscribe();
+    },
+  };
 }
