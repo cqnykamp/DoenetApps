@@ -4,7 +4,7 @@ See root `AGENTS.md` for commands and overall architecture.
 
 ## API Contract
 
-Every `/api` operation is described by a Zod contract and served through it. The OpenAPI document (`apps/api/openapi.json`, served at `/api/docs`) and the client types in `packages/shared/src/api/generated/` are generated from the contracts.
+New `/api` operations are described by a Zod contract and served through it (older routes are listed in `contract-uncovered.json`; see below). The OpenAPI document (`apps/api/openapi.json`, served at `/api/openapi.json`, browsable at `/api/docs`) and the client types in `packages/shared/src/api/generated/` are generated from the contracts.
 
 To add or change an operation:
 

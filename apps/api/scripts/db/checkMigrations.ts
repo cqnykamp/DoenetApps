@@ -2,7 +2,7 @@
  * CI check: fails if a migration added since the base branch (default
  * `origin/main`) contains a destructive statement, unless
  * ALLOW_DESTRUCTIVE=1 (CI sets it when the PR has the `db-destructive`
- * label). See "Database migrations" in apps/api/AGENTS.md.
+ * label). See "Expand-Migrate-Contract" in apps/api/AGENTS.md.
  *
  * Usage: npm run db:check-migrations --workspace @doenet-tools/api [-- --base <git-ref>]
  */

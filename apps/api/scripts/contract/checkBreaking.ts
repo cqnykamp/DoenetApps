@@ -21,6 +21,11 @@ import { breakingChanges, describeChange } from "./gate";
 import { repoRoot, SPEC_PATH } from "./paths";
 
 function readSpecAt(ref: string): OpenApiDocument | null {
+  // A bad ref is an error, not "no spec on the base branch".
+  execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
+    cwd: repoRoot,
+    stdio: "ignore",
+  });
   try {
     const json = execFileSync("git", ["show", `${ref}:${SPEC_PATH}`], {
       cwd: repoRoot,
