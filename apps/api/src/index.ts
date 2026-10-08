@@ -35,6 +35,7 @@ import { getEnvVar, isTestAuthBypassEnabled } from "./utils/env";
 import { asyncPassport, toGoogleAccount } from "./auth";
 import type { DoneCallback, SessionUser } from "./auth";
 import { installProcessErrorHandlers } from "./errors/processErrorHandlers";
+import { perfMiddleware, perfOptionsFromEnv } from "./perf";
 
 // Type assertion to work around passport type declaration issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,6 +57,8 @@ declare module "express-serve-static-core" {
 }
 
 const app: Express = express();
+// First, so the session store's and passport's queries are counted too.
+app.use(perfMiddleware(perfOptionsFromEnv()));
 app.use(cookieParser());
 
 // make sure that when log out, it doesn't use old cached pages

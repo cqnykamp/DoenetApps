@@ -45,6 +45,48 @@ can change behavior entirely inside files the PR never touches. Name the behavio
 and after, and establish the "before" by reading the code that used to run, not by
 assuming.
 
+## Security
+
+Read the diff as an attacker would: for each new input, ask who controls it and where it
+ends up. Access control is covered above; check these as well:
+
+- **Raw SQL.** A `Prisma.sql` template or `$queryRaw` tagged template passes values as
+  parameters. `Prisma.raw` splices its text into the query, and `$queryRawUnsafe` and
+  `$executeRawUnsafe` splice their query string while binding any further arguments as
+  parameters. So the text given to `Prisma.raw`, and the query string given to the Unsafe
+  variants, must be built by the code, with request values passed as parameters (in
+  `apps/api/src/utils/classificationsCategories.ts`, `Prisma.raw` only ever sees generated
+  table aliases).
+- **Other sinks.** Request data that reaches a shell command, a file path, an outgoing
+  URL, a redirect target, or HTML rendered outside React's escaping
+  (`dangerouslySetInnerHTML`).
+- **Secrets and personal data.** Secrets stay out of code, logs, error responses and
+  committed files. Emails, names, session data and scores go only to users entitled to
+  them, and never into logs or into files committed to this public repository.
+- **Scripts run against prod** (`apps/api/scripts/`, such as `delete_empty_sessions.ts`). Ask what
+  credentials they need, whether they could write, and what their output publishes. A
+  change to such a script is a change to code with prod access; review it as one.
+- **CI workflows.** A workflow that runs a PR's code while secrets or cloud credentials
+  are in scope: `pull_request_target`, `workflow_run`, or `issue_comment` (as
+  `dev-deploy-pr.yml` does by design on a maintainer's `/deploy-dev`). A wider
+  `permissions:` block. Text from `${{ github.event.* }}`, such as a comment body or PR
+  title, interpolated straight into a `run:` script instead of passed through an env var.
+- **New dependencies.** Check that the package is maintained and widely used, that its
+  name is spelled as intended, and whether it runs an install script.
+- **Sessions and cross-site requests.** A route that changes state on `GET`, a
+  state-changing route that accepts a plain form post, or a change to the session cookie's
+  options (`sameSite`, `secure`, `httpOnly`) in `apps/api/src/index.ts`.
+- **Window messages.** A `message` listener that acts on the data it receives (saving
+  state, submitting a score) must check `event.source` or `event.origin`. A `postMessage`
+  that carries user data names its target origin rather than `"*"`.
+- **Error paths.** An error message that leaks internals to the client, or an error path
+  that skips a permission check the success path makes.
+
+This repository is public and has no private reporting channel. Report a vulnerability in
+code already on `main` only to the person you are working for, and keep it out of
+everything that reaches GitHub: PR descriptions, review comments, commit messages and
+issues.
+
 ## Run the code
 
 Reading is not verification. Where a finding can be settled by executing something —
@@ -113,6 +155,12 @@ callers over, then remove the old one.
   and a schema change with no migration (or the reverse) is a defect.
 - If the schema changes, check whether `apps/api/prisma/seed.ts` and `prisma/seed/` need
   to change with it.
+- Changes under `infra/` take effect only when someone runs `aws-deploy`, not on merge.
+  If the code in the PR depends on an infra change being live first (a new env var, secret,
+  IAM permission, queue, bucket or other resource the new image reads), the PR description
+  must have a section headed `## Infra Updates Before Merge` (see "Pull Requests" in
+  `AGENTS.md`). A PR whose code needs infra that its description doesn't flag is a
+  deploy-safety finding.
 - Test-only switches (`ENABLE_TEST_AUTH_BYPASS`, `ENABLE_TEST_ROUTES`,
   `MOCK_SIGNIN_EMAIL`) must stay confined to tests; nothing in production code may depend
   on them being set.
@@ -144,4 +192,8 @@ Review whether the PR includes adequate tests:
 - The PR description must still describe everything in the diff. Check it explicitly
   rather than assuming an earlier pass left it accurate: it is the one surface that no
   test, no CI job and no reader of the code will catch when it goes stale. When rewriting
-  it, use the `pr` skill.
+  it, follow the PR description rules under "Pull Requests" in `AGENTS.md`.
+- If the PR adds an ADR under `docs/adr/`, its number must not already be taken on
+  `main` or by another open PR. Two ADRs with the same number don't conflict in git,
+  because their filenames differ, so the duplicate merges silently. Check
+  `docs/adr/` on `main` and the open PRs that add ADRs.

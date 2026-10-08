@@ -2,13 +2,14 @@ import { DateTime } from "luxon";
 import { prisma } from "../model";
 import {
   filterEditableActivity,
-  filterEditableContent,
   filterEditableRootAssignment,
   filterViewableRootAssignment,
   getIsAnonymous,
   getIsEditor,
   getOwnerIsPremium,
   getScopedStudentCourseId,
+  filterOwnedContent,
+  filterOwnedActivity,
 } from "../utils/permissions";
 import { getRandomValues } from "crypto";
 import { AssignmentMode, ContentType, Prisma } from "@prisma/client";
@@ -107,7 +108,7 @@ export async function createAssignment({
             },
           },
         },
-        filterEditableActivity(loggedInUserId),
+        filterOwnedActivity(loggedInUserId),
       ],
     },
     select: { id: true },
@@ -306,7 +307,7 @@ export async function getAllAssignmentScores({
   const { name: folderName } = await prisma.content.findUniqueOrThrow({
     where: {
       id: parentId,
-      ...filterEditableContent(loggedInUserId),
+      ...filterOwnedContent(loggedInUserId),
       type: "folder",
     },
     select: { name: true },
@@ -433,6 +434,10 @@ type OrderedActivityScore = {
  * i.e., the contents of a folder immediately follow the folder itself,
  * and items within a folder are ordered by `sortIndex`
  *
+ * Throws a not-found error unless `studentUserId` is `loggedInUserId`,
+ * has a score on an assignment owned by `loggedInUserId`,
+ * or is rostered to a course folder owned by `loggedInUserId`.
+ *
  * @returns A Promise that resolves to an object with
  * - studentAssignmentScores: information on the student
  * - orderedActivities: the ordered list of all activities in the folder (and subfolders)
@@ -451,9 +456,23 @@ export async function getStudentAssignmentScores({
   orderedActivityScores: OrderedActivityScore[];
   folder: { contentId: Uint8Array; name: string } | null;
 }> {
+  // Only reveal the student if they are the logged-in user, have a score
+  // on one of the logged-in user's assignments, or are rostered to one of the
+  // logged-in user's course folders (they are listed on its Students page
+  // before they start any assignment). Otherwise, throw the same not-found
+  // error as for a nonexistent user, so we don't confirm the user exists.
   const studentData = await prisma.users.findUniqueOrThrow({
     where: {
       userId: studentUserId,
+      OR: [
+        { userId: loggedInUserId },
+        {
+          assignmentScores: {
+            some: { assignment: { ownerId: loggedInUserId } },
+          },
+        },
+        { scopedToClass: { ownerId: loggedInUserId } },
+      ],
     },
     select: {
       userId: true,
@@ -532,7 +551,7 @@ export async function getStudentAssignmentScores({
     const preliminaryFolder = await prisma.content.findUniqueOrThrow({
       where: {
         id: parentId,
-        ...filterEditableContent(loggedInUserId),
+        ...filterOwnedContent(loggedInUserId),
         type: "folder",
       },
       select: { id: true, name: true },

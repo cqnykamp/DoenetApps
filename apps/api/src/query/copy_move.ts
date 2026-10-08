@@ -7,6 +7,7 @@ import {
   filterViewableContent,
   getIsEditor,
   mustBeEditor,
+  filterOwnedContent,
 } from "../utils/permissions";
 import { isEqualUUID } from "../utils/uuid";
 import {
@@ -24,6 +25,7 @@ import { InvalidRequestError } from "../utils/error";
 import { createFullName } from "../utils/names";
 import { recordRecentContent } from "./recent";
 import { getLibraryAccountId } from "./curate";
+import { filterListedLibraryContent } from "./content_list";
 import { generateClassCode } from "./assign";
 
 /**
@@ -182,7 +184,9 @@ export async function moveContent({
     }
   }
 
-  // find the sort indices of all content in folder other than moved content
+  // Find the sort indices of all content in folder other than moved content.
+  // In the library, `desiredPosition` is relative to the listed content,
+  // so ignore the hidden drafts when finding the position.
   const currentSortIndices = (
     await prisma.content.findMany({
       where: {
@@ -190,6 +194,7 @@ export async function moveContent({
         parentId: parentId,
         id: { not: contentId },
         isDeletedOn: null,
+        ...(content.owner.isLibrary ? filterListedLibraryContent : {}),
       },
       select: {
         sortIndex: true,
@@ -892,7 +897,7 @@ export async function getMoveCopyContentData({
   const results = await prisma.content.findMany({
     where: {
       parentId: parentId,
-      ...filterEditableContent(userId),
+      ...filterOwnedContent(userId),
     },
     select: {
       id: true,
@@ -1016,7 +1021,7 @@ export async function checkIfContentContains({
   const children = await prisma.content.findMany({
     where: {
       parentId: contentId,
-      AND: [filterEditableContent(loggedInUserId), filterExcludeAssignments],
+      AND: [filterOwnedContent(loggedInUserId), filterExcludeAssignments],
     },
     select: {
       id: true,

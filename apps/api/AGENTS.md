@@ -29,7 +29,7 @@ CI flags the contract step, and a label records that the wait happened:
 - **API**: `contract:check-breaking` (oasdiff against `main`) fails on removed operations or fields, newly required inputs, and responses that can return new values. Label the PR `api-breaking`. Prefer a server-side default over making an input required: then no contract step is needed.
 - **Database**: `db:check-migrations` fails on new migrations that drop, rename or narrow columns or tables, add `NOT NULL` without a default, or add unique constraints. Label the PR `db-destructive`. To drop a column, first mark the field `@ignore` in `schema.prisma` (it must be optional or have a default) and remove its uses, including raw SQL; drop it in the contract PR. To rename, add the new column, write both, backfill, switch reads, then drop the old one.
 
-Terms are in `CONTEXT.md`; background in `docs/adr/0001-expand-migrate-contract.md`.
+Terms are in `CONTEXT.md`; background in `docs/adr/0003-expand-migrate-contract.md`.
 
 ## Error Handling
 
@@ -66,6 +66,14 @@ Content visibility is managed in `src/access/`. Three levels: `private` < `unlis
 
 When adding endpoints that read or modify content, check whether visibility gating applies.
 
+### Curators and the permission filters
+
+Curators (`users.isEditor`) can view and edit library-owned content. The Prisma filters in `src/utils/permissions.ts` (`filterEditableContent`, `filterViewableActivity`, etc.) take a required `isEditor` flag:
+
+- Pass the value from `getIsEditor(loggedInUserId)`, or the return value of `mustBeEditor(loggedInUserId)`.
+- If curator access is deliberately excluded, use `filterOwnedContent` / `filterOwnedActivity` (owner only) or `filterViewableContentAsNonEditor` / `filterViewableActivityAsNonEditor`.
+- Never pass a literal `true`/`false`; ESLint rejects it. A hard-coded `false` 404s curators on library content.
+
 ## Content Types
 
 Four content types throughout the domain model: `"singleDoc"`, `"select"` (question bank), `"sequence"` (problem set), `"folder"`. These appear in Prisma enums and TypeScript union types.
@@ -73,6 +81,13 @@ Four content types throughout the domain model: `"singleDoc"`, `"select"` (quest
 ## Environment Variables
 
 `DATABASE_URL` must be kept in sync with the individual `DATABASE_*` vars manually — Prisma uses `DATABASE_URL` while Docker uses the individual vars. Update both if any connection detail changes.
+
+## Performance Instrumentation
+
+`src/perf/` counts and times the Prisma operations each `/api` request makes, and reports them in a `Server-Timing` header (on outside production; `PERF_SERVER_TIMING=true` in dev3) and a `perf.request` log line (on in production; `PERF_REQUEST_LOG=true` locally). Counts are only complete when:
+
+- `perfMiddleware` stays the first `app.use` in `src/index.ts`, ahead of any middleware that queries the database (session store, passport).
+- Queries go through the shared `prisma` from `src/model.ts`, which carries the counting extension. A separate `new PrismaClient()` is invisible to it.
 
 ## Test Utilities
 

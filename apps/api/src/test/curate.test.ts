@@ -16,6 +16,7 @@ import {
   rejectActivity,
   addComment,
   getComments,
+  getCurationFolderContent,
 } from "../query/curate";
 import { createContent, deleteContent, updateContent } from "../query/activity";
 import { modifyContentSharedWith, setContentIsPublic } from "../query/share";
@@ -24,7 +25,8 @@ import { fromUUID } from "../utils/uuid";
 import { getActivityIdFromSourceId } from "./testQueries";
 import { getMyUserInfo } from "../query/user";
 import { moveContent } from "../query/copy_move";
-import { getDocEditorDoenetML } from "../query/editor";
+import { getDocEditorDoenetML, getEditorShareStatus } from "../query/editor";
+import { getDoenetMLComparison } from "../query/compare";
 
 async function expectStatusIs(
   sourceId: Uint8Array,
@@ -1452,4 +1454,158 @@ test("getCurationQueue does not provide email", async () => {
   const { pendingContent } = await getCurationQueue({ loggedInUserId: userId });
 
   expect(pendingContent[0].owner).not.toHaveProperty("email");
+});
+
+test("Curator can get share status of activity in library, others cannot", async () => {
+  const { userId: ownerId } = await createTestUser();
+  const { userId: editorId } = await createTestEditorUser();
+  const { userId: otherId } = await createTestUser();
+
+  const { contentId } = await createContent({
+    loggedInUserId: ownerId,
+    contentType: "singleDoc",
+    parentId: null,
+  });
+  await setContentIsPublic({
+    contentId,
+    loggedInUserId: ownerId,
+    isPublic: true,
+  });
+  const { contentIdInLibrary } = await suggestToBeCurated({
+    contentId,
+    loggedInUserId: ownerId,
+  });
+
+  const shareStatus = await getEditorShareStatus({
+    contentId: contentIdInLibrary,
+    loggedInUserId: editorId,
+  });
+  expect(shareStatus.isPublic).eqls(false);
+  expect(shareStatus.sharedWith).eqls([]);
+
+  await expect(() =>
+    getEditorShareStatus({
+      contentId: contentIdInLibrary,
+      loggedInUserId: ownerId,
+    }),
+  ).rejects.toThrowError();
+  await expect(() =>
+    getEditorShareStatus({
+      contentId: contentIdInLibrary,
+      loggedInUserId: otherId,
+    }),
+  ).rejects.toThrowError();
+});
+
+test("Moving library content positions it among the content curators can see", async () => {
+  const { userId: editorId } = await createTestEditorUser();
+
+  const { contentId: folderId } = await createContent({
+    loggedInUserId: editorId,
+    contentType: "folder",
+    parentId: null,
+    inLibrary: true,
+  });
+
+  // Each call adds a library draft as the last item of the folder.
+  // Published drafts are public and listed; pending drafts are private and hidden.
+  async function addLibraryDraft({ publish }: { publish: boolean }) {
+    const { contentId } = await createContent({
+      loggedInUserId: editorId,
+      contentType: "singleDoc",
+      parentId: null,
+    });
+    await setContentIsPublic({
+      contentId,
+      loggedInUserId: editorId,
+      isPublic: true,
+    });
+    await suggestToBeCurated({ contentId, loggedInUserId: editorId });
+    const draftId = await getActivityIdFromSourceId(contentId);
+    if (publish) {
+      await claimOwnershipOfReview({
+        contentId: draftId,
+        loggedInUserId: editorId,
+      });
+      await publishActivityToLibrary({
+        contentId: draftId,
+        loggedInUserId: editorId,
+      });
+    }
+    await moveContent({
+      contentId: draftId,
+      changeParentIdTo: folderId,
+      desiredPosition: 1000,
+      loggedInUserId: editorId,
+    });
+    return draftId;
+  }
+
+  async function listedIds() {
+    const { content } = await getCurationFolderContent({
+      parentId: folderId,
+      loggedInUserId: editorId,
+    });
+    return content.map((c) => c.contentId);
+  }
+
+  // Folder order is A, hidden1, hidden2, B, C; curators see A, B, C.
+  const a = await addLibraryDraft({ publish: true });
+  await addLibraryDraft({ publish: false });
+  await addLibraryDraft({ publish: false });
+  const b = await addLibraryDraft({ publish: true });
+  const c = await addLibraryDraft({ publish: true });
+
+  expect(await listedIds()).eqls([a, b, c]);
+
+  // Move B down one place, as the "Move Down" menu item does.
+  await moveContent({
+    contentId: b,
+    desiredPosition: 2,
+    loggedInUserId: editorId,
+  });
+  expect(await listedIds()).eqls([a, c, b]);
+
+  // Move B back up one place, as the "Move Up" menu item does.
+  await moveContent({
+    contentId: b,
+    desiredPosition: 1,
+    loggedInUserId: editorId,
+  });
+  expect(await listedIds()).eqls([a, b, c]);
+});
+
+test("Comparison says whether the activity is library content", async () => {
+  const { userId: editorId } = await createTestEditorUser();
+
+  const { contentId: sourceId } = await createContent({
+    loggedInUserId: editorId,
+    contentType: "singleDoc",
+    parentId: null,
+  });
+  await setContentIsPublic({
+    contentId: sourceId,
+    loggedInUserId: editorId,
+    isPublic: true,
+  });
+  await suggestToBeCurated({ contentId: sourceId, loggedInUserId: editorId });
+  const draftId = await getActivityIdFromSourceId(sourceId);
+
+  // The library draft compared with the source it was remixed from
+  const fromLibrary = await getDoenetMLComparison({
+    contentId: draftId,
+    compareId: sourceId,
+    loggedInUserId: editorId,
+  });
+  expect(fromLibrary.compareRelation).eq("source");
+  expect(fromLibrary.activity.inLibrary).eq(true);
+
+  // The source compared with its library remix
+  const fromSource = await getDoenetMLComparison({
+    contentId: sourceId,
+    compareId: draftId,
+    loggedInUserId: editorId,
+  });
+  expect(fromSource.compareRelation).eq("remix");
+  expect(fromSource.activity.inLibrary).eq(false);
 });
